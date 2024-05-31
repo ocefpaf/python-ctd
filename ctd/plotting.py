@@ -1,6 +1,4 @@
-"""
-Plotting module
-"""
+"""Plotting module."""
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,11 +8,7 @@ from pandas_flavor import register_dataframe_method, register_series_method
 @register_series_method
 @register_dataframe_method
 def plot_cast(df, secondary_y=False, label=None, ax=None, *args, **kwargs):
-    """
-    Plot a CTD variable with the index in the y-axis instead of x-axis.
-
-    """
-
+    """Plot a CTD variable with the index in the y-axis instead of x-axis."""
     fignums = plt.get_fignums()
     if ax is None and not fignums:
         ax = plt.axes()

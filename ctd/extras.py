@@ -1,16 +1,13 @@
-"""
-Extra functionality for plotting and post-processing.
-"""
+"""Extra functionality for plotting and post-processing."""
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.ma as ma
+from numpy import ma
 from pandas import Series
 
 
 def _extrap1d(interpolator):
-    """
-    How to make scipy.interpolate return an extrapolated result beyond the
+    """How to make scipy.interpolate return an extrapolated result beyond the
     input range.
 
     This is usually bad interpolation! But sometimes useful for pretty pictures,
@@ -40,12 +37,11 @@ def _extrap1d(interpolator):
 def get_maxdepth(self):
     """Return the maximum depth/pressure of a cast."""
     valid_last_depth = self.apply(Series.notnull).values.T
-    return np.float_(self.index.values * valid_last_depth).max(axis=1)
+    return np.float64(self.index.values * valid_last_depth).max(axis=1)
 
 
 def extrap_sec(data, dist, depth, w1=1.0, w2=0):
-    """
-    Extrapolates `data` to zones where the shallow stations are shadowed by
+    """Extrapolates `data` to zones where the shallow stations are shadowed by
     the deep stations.  The shadow region usually cannot be extrapolates via
     linear interpolation.
 
@@ -98,13 +94,11 @@ def extrap_sec(data, dist, depth, w1=1.0, w2=0):
                 col = f_z(depth)
         new_data2.append(col)
 
-    new_data = np.array(new_data1) * w1 + np.array(new_data2).T * w2
-    return new_data
+    return np.array(new_data1) * w1 + np.array(new_data2).T * w2
 
 
 def gen_topomask(h, lon, lat, dx=1.0, kind="linear", plot=False):
-    """
-    Generates a topography mask from an oceanographic transect taking the
+    """Generates a topography mask from an oceanographic transect taking the
     deepest CTD scan as the depth of each station.
 
     Inputs
@@ -134,7 +128,6 @@ def gen_topomask(h, lon, lat, dx=1.0, kind="linear", plot=False):
     André Palóczy Filho (paloczy@gmail.com) --  October/2012
 
     """
-
     import gsw
     from scipy.interpolate import interp1d
 
@@ -153,7 +146,9 @@ def plot_section(self, reverse=False, filled=False, **kw):
     """Plot a sequence of CTD casts as a section."""
     import gsw
 
-    lon, lat, data = list(map(np.asanyarray, (self.lon, self.lat, self.values)))
+    lon, lat, data = list(
+        map(np.asanyarray, (self.lon, self.lat, self.values)),
+    )
     data = ma.masked_invalid(data)
     h = self.get_maxdepth()
     if reverse:
@@ -249,13 +244,11 @@ def plot_section(self, reverse=False, filled=False, **kw):
 
 
 def cell_thermal_mass(temperature, conductivity):
-    """
-    Sample interval is measured in seconds.
+    """Sample interval is measured in seconds.
     Temperature in degrees.
     CTM is calculated in S/m.
 
     """
-
     alpha = 0.03  # Thermal anomaly amplitude.
     beta = 1.0 / 7  # Thermal anomaly time constant (1/beta).
 
@@ -264,22 +257,17 @@ def cell_thermal_mass(temperature, conductivity):
     b = 1 - (2 * a / alpha)
     dCodT = 0.1 * (1 + 0.006 * [temperature - 20])
     dT = np.diff(temperature)
-    ctm = -1.0 * b * conductivity + a * (dCodT) * dT  # [S/m]
-    return ctm
+    return -1.0 * b * conductivity + a * (dCodT) * dT  # [S/m]
 
 
 def mixed_layer_depth(CT, method="half degree"):
     """Return the mixed layer depth based on the "half degree" criteria."""
-    if method == "half degree":
-        mask = CT[0] - CT < 0.5
-    else:
-        mask = np.zeros_like(CT)
+    mask = CT[0] - CT < 0.5 if method == "half degree" else np.zeros_like(CT)
     return Series(mask, index=CT.index, name="MLD")
 
 
 def barrier_layer_thickness(SA, CT):
-    """
-    Compute the thickness of water separating the mixed surface layer from the
+    """Compute the thickness of water separating the mixed surface layer from the
     thermocline.  A more precise definition would be the difference between
     mixed layer depth (MLD) calculated from temperature minus the mixed layer
     depth calculated using density.

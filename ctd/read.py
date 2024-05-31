@@ -1,6 +1,4 @@
-"""
-Read module
-"""
+"""Read module."""
 
 import bz2
 import collections
@@ -30,8 +28,7 @@ def _basename(fname):
 def _normalize_names(name):
     """Normalize column names."""
     name = name.strip()
-    name = name.strip("*")
-    return name
+    return name.strip("*")
 
 
 def _open_compressed(fname):
@@ -50,8 +47,9 @@ def _open_compressed(fname):
         name = zfile.namelist()[0]
         cfile = zfile.open(name)
     else:
+        msg = f"Unrecognized file extension. Expected .gzip, .bz2, or .zip, got {extension}"
         raise ValueError(
-            f"Unrecognized file extension. Expected .gzip, .bz2, or .zip, got {extension}",
+            msg,
         )
     contents = cfile.read()
     cfile.close()
@@ -74,8 +72,9 @@ def _read_file(fname):
     elif extension in [".cnv", ".edf", ".txt", ".ros", ".btl"]:
         contents = fname.read_bytes()
     else:
+        msg = f"Unrecognized file extension. Expected .cnv, .edf, .txt, .ros, or .btl got {extension}"
         raise ValueError(
-            f"Unrecognized file extension. Expected .cnv, .edf, .txt, .ros, or .btl got {extension}",
+            msg,
         )
     # Read as bytes but we need to return strings for the parsers.
     encoding = chardet.detect(contents)["encoding"]
@@ -89,15 +88,18 @@ def _remane_duplicate_columns(names):
     dup = []
     for item, count in items:
         if count > 2:
+            msg = f"Cannot handle more than two duplicated columns. Found {count} for {item}."
             raise ValueError(
-                f"Cannot handle more than two duplicated columns. Found {count} for {item}.",
+                msg,
             )
         if count > 1:
             dup.append(item)
 
     # since we can assume there are only two instances of a word in the list, how about we find the last
     # index of an instance, which will be the second occurrence of the item
-    second_occurrences = [len(names) - names[::-1].index(item) - 1 for item in dup]
+    second_occurrences = [
+        len(names) - names[::-1].index(item) - 1 for item in dup
+    ]
     for idx in second_occurrences:
         names[idx] = f"{names[idx]}_"
     return names
@@ -116,11 +118,10 @@ def _parse_seabird(lines, ftype):
         line = line.strip()
 
         # Only cnv has columns names, for bottle files we will use the variable row.
-        if ftype == "cnv":
-            if "# name" in line:
-                name, unit = line.split("=")[1].split(":")
-                name, unit = list(map(_normalize_names, (name, unit)))
-                names.append(name)
+        if ftype == "cnv" and "# name" in line:
+            name, unit = line.split("=")[1].split(":")
+            name, unit = list(map(_normalize_names, (name, unit)))
+            names.append(name)
 
         # Seabird headers starts with *.
         if line.startswith("*"):
@@ -137,23 +138,25 @@ def _parse_seabird(lines, ftype):
         if "NMEA Latitude" in line:
             hemisphere = line[-1]
             lat = line.strip(hemisphere).split("=")[1].strip()
-            lat = np.float_(lat.split())
+            lat = np.float64(lat.split())
             if hemisphere == "S":
                 lat = -(lat[0] + lat[1] / 60.0)
             elif hemisphere == "N":
                 lat = lat[0] + lat[1] / 60.0
             else:
-                raise ValueError("Latitude not recognized.")
+                msg = "Latitude not recognized."
+                raise ValueError(msg)
         if "NMEA Longitude" in line:
             hemisphere = line[-1]
             lon = line.strip(hemisphere).split("=")[1].strip()
-            lon = np.float_(lon.split())
+            lon = np.float64(lon.split())
             if hemisphere == "W":
                 lon = -(lon[0] + lon[1] / 60.0)
             elif hemisphere == "E":
                 lon = lon[0] + lon[1] / 60.0
             else:
-                raise ValueError("Latitude not recognized.")
+                msg = "Latitude not recognized."
+                raise ValueError(msg)
         if "NMEA UTC (Time)" in line:
             time = line.split("=")[-1].strip()
             # Should use some fuzzy datetime parser to make this more robust.
@@ -199,9 +202,9 @@ def _parse_seabird(lines, ftype):
 
 
 def from_bl(fname):
-    """Read Seabird bottle-trip (bl) file
+    """Read Seabird bottle-trip (bl) file.
 
-    Example
+    Example:
     -------
     >>> from pathlib import Path
     >>> import ctd
@@ -227,8 +230,7 @@ def from_bl(fname):
 
 
 def from_btl(fname):
-    """
-    DataFrame constructor to open Seabird CTD BTL-ASCII format.
+    """DataFrame constructor to open Seabird CTD BTL-ASCII format.
 
     Examples
     --------
@@ -266,14 +268,16 @@ def from_btl(fname):
     datetimes = dates + " " + times
 
     # Fill the Date column with datetimes.
-    df.loc[:: len(rowtypes), "Date"] = datetimes.values
-    df.loc[1 :: len(rowtypes), "Date"] = datetimes.values
+    df.loc[:: len(rowtypes), "Date"] = datetimes.to_numpy()
+    df.loc[1 :: len(rowtypes), "Date"] = datetimes.to_numpy()
 
     # Fill missing rows.
     df["Bottle"] = df["Bottle"].fillna(method="ffill")
     df["Date"] = df["Date"].fillna(method="ffill")
 
-    df["Statistic"] = df["Statistic"].str.lstrip("(").str.rstrip(")")  # (avg) to avg
+    df["Statistic"] = (
+        df["Statistic"].str.lstrip("(").str.rstrip(")")
+    )  # (avg) to avg
 
     if "name" not in metadata:
         name = _basename(fname)[1]
@@ -306,8 +310,7 @@ def from_btl(fname):
 
 
 def from_edf(fname):
-    """
-    DataFrame constructor to open XBT EDF ASCII format.
+    """DataFrame constructor to open XBT EDF ASCII format.
 
     Examples
     --------
@@ -328,7 +331,7 @@ def from_edf(fname):
             try:
                 hemisphere = line[-1]
                 lat = line.strip(hemisphere).split(":")[1].strip()
-                lat = np.float_(lat.split())
+                lat = np.float64(lat.split())
                 if hemisphere == "S":
                     lat = -(lat[0] + lat[1] / 60.0)
                 elif hemisphere == "N":
@@ -339,7 +342,7 @@ def from_edf(fname):
             try:
                 hemisphere = line[-1]
                 lon = line.strip(hemisphere).split(":")[1].strip()
-                lon = np.float_(lon.split())
+                lon = np.float64(lon.split())
                 if hemisphere == "W":
                     lon = -(lon[0] + lon[1] / 60.0)
                 elif hemisphere == "E":
@@ -366,7 +369,7 @@ def from_edf(fname):
     )
     f.close()
 
-    df.set_index("depth", drop=True, inplace=True)
+    df = df.set_index("depth", drop=True)
     df.index.name = "Depth [m]"
     name = _basename(fname)[1]
 
@@ -382,8 +385,7 @@ def from_edf(fname):
 
 
 def from_cnv(fname):
-    """
-    DataFrame constructor to open Seabird CTD CNV-ASCII format.
+    """DataFrame constructor to open Seabird CTD CNV-ASCII format.
 
     Examples
     --------
@@ -425,12 +427,15 @@ def from_cnv(fname):
     df.columns = df.columns.str.strip()
     prkey = [key for key in prkeys if key in df.columns]
     if len(prkey) == 0:
-        raise ValueError("Expected one pressure/depth column, didn't receive any")
+        msg = "Expected one pressure/depth column, didn't receive any"
+        raise ValueError(
+            msg,
+        )
     elif len(prkey) > 1:
         # if multiple keys present then keep the first one
         prkey = prkey[0]
 
-    df.set_index(prkey, drop=True, inplace=True)
+    df = df.set_index(prkey, drop=True)
     df.index.name = "Pressure [dbar]"
     if prkey == "depSM":
         lat = metadata.get("lat", None)
@@ -470,8 +475,7 @@ def from_cnv(fname):
 
 
 def from_fsi(fname, skiprows=9):
-    """
-    DataFrame constructor to open Falmouth Scientific, Inc. (FSI) CTD
+    """DataFrame constructor to open Falmouth Scientific, Inc. (FSI) CTD
     ASCII format.
 
     Examples
@@ -495,7 +499,7 @@ def from_fsi(fname, skiprows=9):
     )
     f.close()
 
-    df.set_index("PRES", drop=True, inplace=True)
+    df = df.set_index("PRES", drop=True)
     df.index.name = "Pressure [dbar]"
     metadata = {"name": str(fname)}
     df._metadata = metadata
@@ -503,8 +507,7 @@ def from_fsi(fname, skiprows=9):
 
 
 def rosette_summary(fname):
-    """
-    Make a BTL (bottle) file from a ROS (bottle log) file.
+    """Make a BTL (bottle) file from a ROS (bottle log) file.
 
     More control for the averaging process and at which step we want to
     perform this averaging eliminating the need to read the data into SBE
@@ -519,23 +522,24 @@ def rosette_summary(fname):
     >>> fname = data_path.joinpath("CTD/g01l01s01.ros")
     >>> ros = ctd.rosette_summary(fname)
     >>> ros = ros.groupby(ros.index).mean()
-    >>> ros.pressure.values.astype(int)
+    >>> ros.pressure.to_numpy().astype(int)
     array([835, 806, 705, 604, 503, 404, 303, 201, 151, 100,  51,   1])
 
     """
     ros = from_cnv(fname)
-    ros["pressure"] = ros.index.values.astype(float)
+    ros["pressure"] = ros.index.to_numpy().astype(float)
     ros["nbf"] = ros["nbf"].astype(int)
-    ros.set_index("nbf", drop=True, inplace=True, verify_integrity=False)
+    metadata = ros._metadata  # noqa: SLF001
+    ros = ros.set_index("nbf", drop=True, verify_integrity=False)
+    ros._metadata = metadata  # noqa: SLF001
     return ros
 
 
-def from_castaway_csv(fname):
-    """
-    DataFrame constructor to open CastAway CSV format.
+def from_castaway_csv(fname: str) -> pd.DataFrame:
+    """DataFrame constructor to open CastAway CSV format.
 
-    Example
-    --------
+    Example:
+    -------
     >>> import ctd
     >>> cast = ctd.from_castaway_csv("tests/data/castaway_data.csv")
     >>> cast.columns
@@ -544,27 +548,28 @@ def from_castaway_csv(fname):
           dtype='object')
 
     """
-    with open(fname) as file:
-        f = file.readlines()
+    with Path.open(fname) as f:
+        lines = f.readlines()
 
     # Strip newline characters
-    f = [s.strip() for s in f]
+    lines = [s.strip() for s in lines]
 
     # Separate meta data and CTD profile
-    meta = [s for s in f if s[0] == "%"][0:-1]
-    data = [s.split(",") for s in f if s[0] != "%"]
-    df = pd.DataFrame(data[1:-1], columns=data[0])
+    meta = [s for s in lines if s[0] == "%"][0:-1]
+    data = [s.split(",") for s in lines if s[0] != "%"]
+    cast = pd.DataFrame(data[1:-1], columns=data[0])
 
     # Convert to numeric
-    for col in df.columns:
-        df[col] = pd.to_numeric(df[col])
+    for col in cast.columns:
+        cast[col] = pd.to_numeric(cast[col])
 
     # Normalise column names and extract units
-    units = [s[s.find("(") + 1 : s.find(")")] for s in df.columns]
-    df.columns = [
-        _normalize_names(s.split("(")[0]).lower().replace(" ", "_") for s in df.columns
+    units = [s[s.find("(") + 1 : s.find(")")] for s in cast.columns]
+    cast.columns = [
+        _normalize_names(s.split("(")[0]).lower().replace(" ", "_")
+        for s in cast.columns
     ]
-    df.set_index("pressure", drop=True, inplace=True, verify_integrity=False)
+    cast = cast.set_index("pressure", drop=True, verify_integrity=False)
 
     # Add metadata
     meta = [s.replace("%", "").strip().split(",") for s in meta]
@@ -572,6 +577,6 @@ def from_castaway_csv(fname):
     for line in meta:
         metadata[line[0]] = line[1]
     metadata["units"] = units
-    df._metadata = metadata
+    cast._metadata = metadata  # noqa: SLF001
 
-    return df
+    return cast

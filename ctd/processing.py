@@ -1,21 +1,18 @@
-"""
-Processing module
-"""
+"""Processing module."""
 
 import numpy as np
-import numpy.ma as ma
 import pandas as pd
+from numpy import ma
 from pandas_flavor import register_dataframe_method, register_series_method
 
 
 def _rolling_window(data, block):
-    """
-    http://stackoverflow.com/questions/4936620/
+    """http://stackoverflow.com/questions/4936620/
     Using strides for an efficient moving average filter.
 
     """
     shape = data.shape[:-1] + (data.shape[-1] - block + 1, block)
-    strides = data.strides + (data.strides[-1],)
+    strides = (*data.strides, data.strides[-1])
     return np.lib.stride_tricks.as_strided(data, shape=shape, strides=strides)
 
 
@@ -29,10 +26,7 @@ def remove_above_water(df):
 @register_series_method
 @register_dataframe_method
 def remove_up_to(df, idx):
-    """
-    Remove all the data above a certain index value where index can be pressure or depth.
-
-    """
+    """Remove all the data above a certain index value where index can be pressure or depth."""
     new_df = df.copy()
     return new_df[new_df.index >= idx]
 
@@ -51,8 +45,7 @@ def split(df):
 @register_series_method
 @register_dataframe_method
 def lp_filter(df, sample_rate=24.0, time_constant=0.15):
-    """
-    Filter a series with `time_constant` (use 0.15 s for pressure), and for
+    """Filter a series with `time_constant` (use 0.15 s for pressure), and for
     a signal of `sample_rate` in Hertz (24 Hz for 911+).
     NOTE: 911+ systems do not require filter for temperature nor salinity.
 
@@ -79,7 +72,6 @@ def lp_filter(df, sample_rate=24.0, time_constant=0.15):
     https://scipy-cookbook.readthedocs.io/items/FIRFilter.html
 
     """
-
     from scipy import signal
 
     # Butter is closer to what SBE is doing with their cosine filter.
@@ -93,10 +85,7 @@ def lp_filter(df, sample_rate=24.0, time_constant=0.15):
 @register_series_method
 @register_dataframe_method
 def press_check(df):
-    """
-    Remove pressure reversals from the index.
-
-    """
+    """Remove pressure reversals from the index."""
     new_df = df.copy()
     press = new_df.copy().index.values
 
@@ -108,7 +97,7 @@ def press_check(df):
             ref = press[k]
             cut = press[k + 1 :] < ref
             mask[k + 1 :][cut] = True
-    new_df[mask] = np.NaN
+    new_df[mask] = np.nan
     return new_df
 
 
@@ -125,8 +114,9 @@ def _bindata(series, delta, method):
         data = np.interp(new_index, series.index, series)
         return pd.Series(data, index=new_index, name=series.name)
     else:
+        msg = f"Expected method `average` or `interpolate`, but got {method}."
         raise ValueError(
-            f"Expected method `average` or `interpolate`, but got {method}.",
+            msg,
         )
     return new_series
 
@@ -134,8 +124,7 @@ def _bindata(series, delta, method):
 @register_series_method
 @register_dataframe_method
 def bindata(df, delta=1.0, method="average"):
-    """
-    Bin average the index (usually pressure) to a given interval (default
+    """Bin average the index (usually pressure) to a given interval (default
     delta = 1).
 
     """
@@ -147,12 +136,10 @@ def bindata(df, delta=1.0, method="average"):
 
 
 def _despike(series, n1, n2, block, keep):
-    """
-    Wild Edit Seabird-like function.  Passes with Standard deviation
+    """Wild Edit Seabird-like function.  Passes with Standard deviation
     `n1` and `n2` with window size `block`.
 
     """
-
     data = series.values.astype(float).copy()
     roll = _rolling_window(data, block)
     roll = ma.masked_invalid(roll)
@@ -161,8 +148,10 @@ def _despike(series, n1, n2, block, keep):
     # Use the last value to fill-up.
     std = np.r_[std, np.tile(std[-1], block - 1)]
     mean = np.r_[mean, np.tile(mean[-1], block - 1)]
-    mask = np.abs(data - mean.filled(fill_value=np.NaN)) > std.filled(fill_value=np.NaN)
-    data[mask] = np.NaN
+    mask = np.abs(data - mean.filled(fill_value=np.nan)) > std.filled(
+        fill_value=np.nan,
+    )
+    data[mask] = np.nan
 
     # Pass two recompute the mean and std without the flagged values from pass
     # one and removed the flagged data.
@@ -174,20 +163,19 @@ def _despike(series, n1, n2, block, keep):
     std = np.r_[std, np.tile(std[-1], block - 1)]
     mean = np.r_[mean, np.tile(mean[-1], block - 1)]
     values = series.values.astype(float)
-    mask = np.abs(values - mean.filled(fill_value=np.NaN)) > std.filled(
-        fill_value=np.NaN,
+    mask = np.abs(values - mean.filled(fill_value=np.nan)) > std.filled(
+        fill_value=np.nan,
     )
 
     clean = series.astype(float).copy()
-    clean[mask] = np.NaN
+    clean[mask] = np.nan
     return clean
 
 
 @register_series_method
 @register_dataframe_method
 def despike(df, n1=2, n2=20, block=100, keep=0):
-    """
-    Wild Edit Seabird-like function.  Passes with Standard deviation
+    """Wild Edit Seabird-like function.  Passes with Standard deviation
     `n1` and `n2` with window size `block`.
 
     """
@@ -200,7 +188,6 @@ def despike(df, n1=2, n2=20, block=100, keep=0):
 
 def _smooth(series, window_len, window):
     """Smooth the data using a window with requested size."""
-
     windows = {
         "flat": np.ones,
         "hanning": np.hanning,
@@ -214,9 +201,10 @@ def _smooth(series, window_len, window):
         return pd.Series(data, index=series.index, name=series.name)
 
     if window not in list(windows.keys()):
+        msg = """window must be one of 'flat', 'hanning',
+                         'hamming', 'bartlett', 'blackman'"""
         raise ValueError(
-            """window must be one of 'flat', 'hanning',
-                         'hamming', 'bartlett', 'blackman'""",
+            msg,
         )
 
     s = np.r_[
@@ -252,14 +240,12 @@ def _movingaverage(series, window_size=48):
 @register_series_method
 @register_dataframe_method
 def movingaverage(df, window_size=48):
-    """
-    Moving average on a data frame or series.
+    """Moving average on a data frame or series.
 
     Inputs:
       windows_size : integer
 
     """
-
     if isinstance(df, pd.Series):
         new_df = _movingaverage(df, window_size=window_size)
     else:
